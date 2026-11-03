@@ -472,6 +472,12 @@ int main(int arg, char **argv)
    #define STBTT_free(x,u)    ((void)(u),free(x))
    #endif
 
+   // #define your own STBTT_HHEAP_CHUNK(size) to change how many active
+   // edges the rasterizer allocates per scratch chunk (e.g. on small heaps)
+   #ifndef STBTT_HHEAP_CHUNK
+   #define STBTT_HHEAP_CHUNK(size)  ((size) < 32 ? 2000 : (size) < 128 ? 800 : 100)
+   #endif
+
    #ifndef STBTT_assert
    #include <assert.h>
    #define STBTT_assert(x)    assert(x)
@@ -2274,7 +2280,7 @@ static int stbtt__GetGlyphShapeT2(const stbtt_fontinfo *info, int glyph_index, s
    if (stbtt__run_charstring(info, glyph_index, &count_ctx)) {
       *pvertices = (stbtt_vertex*)STBTT_malloc(count_ctx.num_vertices*sizeof(stbtt_vertex), info->userdata);
       output_ctx.pvertices = *pvertices;
-      if (stbtt__run_charstring(info, glyph_index, &output_ctx)) {
+      if (*pvertices && stbtt__run_charstring(info, glyph_index, &output_ctx)) {
          STBTT_assert(output_ctx.num_vertices == count_ctx.num_vertices);
          return output_ctx.num_vertices;
       }
@@ -2775,7 +2781,7 @@ static void *stbtt__hheap_alloc(stbtt__hheap *hh, size_t size, void *userdata)
       return p;
    } else {
       if (hh->num_remaining_in_head_chunk == 0) {
-         int count = (size < 32 ? 2000 : size < 128 ? 800 : 100);
+         int count = STBTT_HHEAP_CHUNK(size);
          stbtt__hheap_chunk *c = (stbtt__hheap_chunk *) STBTT_malloc(sizeof(stbtt__hheap_chunk) + size * count, userdata);
          if (c == NULL)
             return NULL;
@@ -2934,6 +2940,7 @@ static void stbtt__rasterize_sorted_edges(stbtt__bitmap *result, stbtt__edge *e,
       scanline = (unsigned char *) STBTT_malloc(result->w, userdata);
    else
       scanline = scanline_data;
+   if (scanline == NULL) return;
 
    y = off_y * vsubsample;
    e[n].y0 = (off_y + result->h) * (float) vsubsample + 1;
@@ -3307,6 +3314,7 @@ static void stbtt__rasterize_sorted_edges(stbtt__bitmap *result, stbtt__edge *e,
       scanline = (float *) STBTT_malloc((result->w*2+1) * sizeof(float), userdata);
    else
       scanline = scanline_data;
+   if (scanline == NULL) return;
 
    scanline2 = scanline + result->w;
 
